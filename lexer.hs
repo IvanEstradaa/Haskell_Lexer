@@ -42,7 +42,7 @@ analizadorLexico [] = []
 analizadorLexico (' ':xs) = analizadorLexico xs
 
 -- Si un entero sea negativo o no, tiene un punto, y en algunos casos una e o E, lo convierto en un flotante y sigo con el resto del archivo
-analizadorLexico ('-':x:xs) | elem x ['0'..'9'] = (Real (read ('-':x:'.':takeWhile (\y -> elem y ['0'..'9']) xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9']) xs))
+analizadorLexico ('-':x:xs) | elem x ['0'..'9'] = (Real (read ('-':x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' ) xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.') xs))
 analizadorLexico (x:xs) | elem x ['0'..'9'] = (Real (read (x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))
 
 -- Si el primer caracter es un digito, lo convierto en un entero y sigo con el resto del archivo
