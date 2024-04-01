@@ -1,23 +1,3 @@
--- Quiero hacer un analizador léxico donde recibo un archivo .txt y lo convierto en una lista de tokens. 
--- Los tokens son:
--- 1. Enteros
--- 2. Flotantes (reales, con punto o exponencial con e o E)
--- 3. Operadores (= asignacion, + suma, - resta, * multiplicacion, / division, ^ potencia)
--- 4. Parentesis (abre y cierra)
--- 5. Identificadores (letras seguidas de letras o numeros o _)
--- 6. Comentarios (empiezan con // y terminan con salto de linea)
-
--- Ejemplo de archivo .txt:
--- 1 + 2
--- 3.14 * 2
--- x = 3
--- // Comentario
--- 2^3
-
--- Ejemplo de lista de tokens:
--- [Entero 1, Operador "+", Entero 2, Entero 3, Punto, Entero 14, Operador "*", Entero 2, Identificador "x", Operador "=", Entero 3, Comentario "// Comentario", Entero 2, Operador "^", Entero 3]
-
-
 -- Definición de tokens
 data Token
     = Entero Int
