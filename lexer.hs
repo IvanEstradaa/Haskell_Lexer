@@ -22,11 +22,11 @@ analizadorLexico [] = []
 analizadorLexico (' ':xs) = analizadorLexico xs
 
 -- Si un entero sea negativo o no, tiene un punto, y en algunos casos una e o E, lo convierto en un flotante y sigo con el resto del archivo
-analizadorLexico ('-':x:xs) | elem x ['0'..'9'] = (Real (read ('-':x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' ) xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.') xs))
+analizadorLexico ('-':x:xs) | elem x ['0'..'9'] = (Real (read ('-':x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))
 analizadorLexico (x:xs) | elem x ['0'..'9'] = (Real (read (x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))
 
 -- Si el primer caracter es un digito, lo convierto en un entero y sigo con el resto del archivo
-analizadorLexico (x:xs) | elem x ['0'..'9'] = (Entero (read (x:takeWhile (\y -> elem y ['0'..'9']) xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.') xs))
+analizadorLexico (x:xs) | elem x ['0'..'9'] = (Entero (read (x:takeWhile (\y -> elem y ['0'..'9']) xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9']) xs))
 
 -- Si el primer caracter es una letra, lo convierto en un identificador y sigo con el resto del archivo
 analizadorLexico (x:xs) | elem x ['a'..'z'] || elem x ['A'..'Z'] = (Variable (x:takeWhile (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') xs)):(analizadorLexico (dropWhile (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') xs))
