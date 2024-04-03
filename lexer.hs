@@ -14,43 +14,43 @@ data Token
     | Comentario String
     deriving (Eq)
 
--- Función que recibe un archivo .txt y devuelve una lista de tokens
 analizadorLexico :: String -> [Token]
 analizadorLexico [] = []
+analizadorLexico (' ':xs) = analizadorLexico xs  
+analizadorLexico ('/':'/':xs) = (Comentario ('/':'/':takeWhile (/= '\n') xs)) : analizadorLexico (dropWhile (/= '\n') xs)  
+analizadorLexico (x:xs)
+    | elem x ['0'..'9'] = let (numero, resto) = span (\y -> elem y ['0'..'9'] || y `elem` ".eE-") (x:xs)
+                              parseResult = if '.' `elem` numero || 'e' `elem` numero || 'E' `elem` numero
+                                                then readFloating numero
+                                                else readInteger numero
+                          in case parseResult of
+                                Right token -> token : analizadorLexico resto
+                                Left errMsg -> error errMsg
+    | elem x ['a'..'z'] || elem x ['A'..'Z'] = let (identificador, resto) = span (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') (x:xs)
+                                                in (Variable identificador) : analizadorLexico resto  
+    | otherwise = case x of
+                    '+' -> Suma x : analizadorLexico xs
+                    '-' -> Resta x : analizadorLexico xs
+                    '*' -> Multiplicacion x : analizadorLexico xs
+                    '/' -> Division x : analizadorLexico xs
+                    '^' -> Potencia x : analizadorLexico xs
+                    '=' -> Asignacion x : analizadorLexico xs
+                    '(' -> Parentesis_abre x : analizadorLexico xs
+                    ')' -> Parentesis_cierra x : analizadorLexico xs
+                    _   -> analizadorLexico xs  
 
--- Si el primer caracter es un espacio, lo ignoro y sigo con el resto del archivo
-analizadorLexico (' ':xs) = analizadorLexico xs
+readFloating :: String -> Either String Token
+readFloating str = case reads str :: [(Float, String)] of
+                    [(val, "")] -> Right (Real val)
+                    _           -> Left $ "Error de sintaxis: " ++ str
 
--- Si un entero sea negativo o no, tiene un punto, y en algunos casos una e o E, lo convierto en un flotante y sigo con el resto del archivo
-analizadorLexico ('-':x:xs) | elem x ['0'..'9'] = (Real (read ('-':x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))
-analizadorLexico (x:xs) | elem x ['0'..'9'] = (Real (read (x:takeWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9'] || y == '.' || y == 'e' || y == 'E' || y == '-') xs))
-
--- Si el primer caracter es un digito, lo convierto en un entero y sigo con el resto del archivo
-analizadorLexico (x:xs) | elem x ['0'..'9'] = (Entero (read (x:takeWhile (\y -> elem y ['0'..'9']) xs))):(analizadorLexico (dropWhile (\y -> elem y ['0'..'9']) xs))
-
--- Si el primer caracter es una letra, lo convierto en un identificador y sigo con el resto del archivo
-analizadorLexico (x:xs) | elem x ['a'..'z'] || elem x ['A'..'Z'] = (Variable (x:takeWhile (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') xs)):(analizadorLexico (dropWhile (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') xs))
-
--- Si el primer caracter es una barra, verifico si el siguiente caracter es una barra para saber si es un comentario
-analizadorLexico ('/':'/':xs) = (Comentario ('/':'/':takeWhile (\y -> y /= '\n') xs)):(analizadorLexico (dropWhile (\y -> y /= '\n') xs))
-
--- Si el primer caracter es un operador, lo agrego a la lista de tokens y sigo con el resto del archivo
-analizadorLexico (x:xs) | x == '+' = (Suma x):(analizadorLexico xs)
-analizadorLexico (x:xs) | x == '-' = (Resta x):(analizadorLexico xs)
-analizadorLexico (x:xs) | x == '*' = (Multiplicacion x):(analizadorLexico xs)
-analizadorLexico (x:xs) | x == '/' = (Division x):(analizadorLexico xs)
-analizadorLexico (x:xs) | x == '^' = (Potencia x):(analizadorLexico xs)
-analizadorLexico (x:xs) | x == '=' = (Asignacion x):(analizadorLexico xs)
-
--- Si el primer caracter es un parentesis, lo agrego a la lista de tokens y sigo con el resto del archivo
-analizadorLexico (x:xs) | x == '(' = (Parentesis_abre x):(analizadorLexico xs)
-analizadorLexico (x:xs) | x == ')' = (Parentesis_cierra x):(analizadorLexico xs)
-
--- Si el primer caracter no es ninguno de los anteriores, lo ignoro y sigo con el resto del archivo
-analizadorLexico (x:xs) = analizadorLexico xs
+readInteger :: String -> Either String Token
+readInteger str = case reads str :: [(Int, String)] of
+                    [(val, "")] -> Right (Entero val)
+                    _           -> Left $ "Error de sintaxis: " ++ str
 
 
--- queremos imprimir la lista de tokens en formato de tabla, para eso creamos una instancia de la clase Show para Token
+
 instance Show Token where
     show (Entero x) = show x ++ "\t | \t Entero" 
     show (Real x) = show x ++ "\t | \t Real"
@@ -65,14 +65,12 @@ instance Show Token where
     show (Variable x) = x ++ "\t | \t Variable"
     show (Comentario x) = x ++ "\t | \t Comentario"
 
--- main
+main :: IO ()
 main = do
-    -- Solicitamos el archivo
     putStrLn "Ingrese el nombre del archivo .txt"
     file <- getLine
-    -- Leemos el archivo
     archivo <- readFile file
-    -- Imprimimos la lista de tokens
     putStr "\n Token \t | \t Tipo \n"
     putStr "------------------------\n"
     putStr $ unlines $ map show (analizadorLexico archivo)
+
