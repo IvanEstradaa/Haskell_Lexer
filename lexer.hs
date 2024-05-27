@@ -73,4 +73,3 @@ main = do
     putStr "\n Token \t | \t Tipo \n"
     putStr "------------------------\n"
     putStr $ unlines $ map show (analizadorLexico archivo)
-
