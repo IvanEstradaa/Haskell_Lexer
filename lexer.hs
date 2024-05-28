@@ -12,11 +12,14 @@ data Token
     | Parentesis_cierra Char
     | Variable String
     | Comentario String
+    | Error String  -- New token type for errors
     deriving (Eq)
 
 analizadorLexico :: String -> [Token]
 analizadorLexico [] = []
-analizadorLexico (' ':xs) = analizadorLexico xs  
+analizadorLexico (' ':xs) = analizadorLexico xs  -- Ignore spaces
+analizadorLexico ('\n':xs) = analizadorLexico xs  -- Ignore newlines
+analizadorLexico ('\t':xs) = analizadorLexico xs  -- Ignore tabs
 analizadorLexico ('/':'/':xs) = (Comentario ('/':'/':takeWhile (/= '\n') xs)) : analizadorLexico (dropWhile (/= '\n') xs)  
 analizadorLexico (x:xs)
     | elem x ['0'..'9'] = let (numero, resto) = span (\y -> elem y ['0'..'9'] || y `elem` ".eE-") (x:xs)
@@ -25,7 +28,7 @@ analizadorLexico (x:xs)
                                                 else readInteger numero
                           in case parseResult of
                                 Right token -> token : analizadorLexico resto
-                                Left errMsg -> error errMsg
+                                Left errMsg -> Error errMsg : analizadorLexico resto  -- Handle error by creating an Error token
     | elem x ['a'..'z'] || elem x ['A'..'Z'] = let (identificador, resto) = span (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') (x:xs)
                                                 in (Variable identificador) : analizadorLexico resto  
     | otherwise = case x of
@@ -37,7 +40,12 @@ analizadorLexico (x:xs)
                     '=' -> Asignacion x : analizadorLexico xs
                     '(' -> Parentesis_abre x : analizadorLexico xs
                     ')' -> Parentesis_cierra x : analizadorLexico xs
-                    _   -> analizadorLexico xs  
+                    '@' -> Error "Simbolo no permitido: @" : analizadorLexico xs  -- Handle invalid symbol
+                    '#' -> Error "Simbolo no permitido: #" : analizadorLexico xs  -- Handle invalid symbol
+                    '$' -> Error "Simbolo no permitido: $" : analizadorLexico xs  -- Handle invalid symbol
+                    '%' -> Error "Simbolo no permitido: %" : analizadorLexico xs  -- Handle invalid symbol
+                    '!' -> Error "Simbolo no permitido: !" : analizadorLexico xs  -- Handle invalid symbol
+                    _   -> Error ("Simbolo no reconocido: " ++ [x]) : analizadorLexico xs  -- General case for any other invalid symbols
 
 readFloating :: String -> Either String Token
 readFloating str = case reads str :: [(Float, String)] of
@@ -48,8 +56,6 @@ readInteger :: String -> Either String Token
 readInteger str = case reads str :: [(Int, String)] of
                     [(val, "")] -> Right (Entero val)
                     _           -> Left $ "Error de sintaxis: " ++ str
-
-
 
 instance Show Token where
     show (Entero x) = show x ++ "\t | \t Entero" 
@@ -64,6 +70,7 @@ instance Show Token where
     show (Parentesis_cierra x) = [x] ++ "\t | \t Parentesis que cierra"
     show (Variable x) = x ++ "\t | \t Variable"
     show (Comentario x) = x ++ "\t | \t Comentario"
+    show (Error msg) = "ERROR: " ++ msg  -- Display error message
 
 main :: IO ()
 main = do
