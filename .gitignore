@@ -1,0 +1,5 @@
+# I want to put .hi and .o files in the .gitignore file
+
+lexer.hi syntaxer.hi
+lexer.o syntaxer.o
+out
