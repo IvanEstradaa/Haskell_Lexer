@@ -27,7 +27,7 @@ analizadorLexico [] = []
 analizadorLexico (' ':xs) = analizadorLexico xs
 analizadorLexico ('\n':xs) = analizadorLexico xs
 analizadorLexico ('\t':xs) = analizadorLexico xs
-analizadorLexico ('/':'/':xs) = (Comentario ('/':'/':takeWhile (/= '\n') xs)) : analizadorLexico (dropWhile (/= '\n') xs)  
+analizadorLexico ('/':'/':xs) = (Comentario ('/':'/':takeWhile (/= '\n') xs)) : analizadorLexico (dropWhile (/= '\n') xs)
 analizadorLexico (x:xs)
     | elem x ['0'..'9'] = let (numero, resto) = span (\y -> elem y ['0'..'9'] || elem y ".eE-") (x:xs)
                               parseResult = if elem '.' numero || elem 'e' numero || elem 'E' numero
@@ -74,12 +74,14 @@ readInteger str = case reads str :: [(Int, String)] of
 data SyntaxTree
     = ProgramNode SyntaxTree
     | MainNode [SyntaxTree]
-    | StatementNode SyntaxTree
+    | StatementNode SyntaxTree SyntaxTree
+    | AssignmentNode SyntaxTree SyntaxTree SyntaxTree
     | TypeNode String
     | VariableNode String
-    | ExpressionNode SyntaxTree
-    | TermNode SyntaxTree
+    | ExpressionNode SyntaxTree SyntaxTree SyntaxTree
+    | TermNode SyntaxTree SyntaxTree
     | FactorNode SyntaxTree
+    | OperatorNode Char
     | NumberNode String
     | CommentNode String
     | ErrorNode String
@@ -93,19 +95,20 @@ parseProgram :: ParserState -> (SyntaxTree, ParserState)
 parseProgram (ParserState (Programa : Llave_abre '{' : tokens)) =
     let (mainNode, newState) = parseMain (ParserState tokens)
     in case newState of
-        ParserState (Llave_cierra '}' : rest) -> (ProgramNode mainNode, ParserState rest)
+        ParserState (Llave_cierra '}':rest) -> (ProgramNode mainNode, ParserState rest)
         _ -> (ErrorNode "Expected closing '}' for Programa", newState)
 parseProgram state = (ErrorNode "Expected 'Programa' at the beginning", state)
 
 parseMain :: ParserState -> (SyntaxTree, ParserState)
-parseMain (ParserState (Principal : Parentesis_abre '(' : Parentesis_cierra ')' : Llave_abre '{' : tokens)) =
+parseMain (ParserState (Principal : Llave_abre '{' : tokens)) =
     let (statements, newState) = parseStatements (ParserState tokens)
     in case newState of
-        ParserState (Llave_cierra '}' : rest) -> (MainNode statements, ParserState rest)
+        ParserState (Llave_cierra '}':rest) -> (MainNode statements, ParserState rest)
         _ -> (ErrorNode "Expected closing '}' for principal", newState)
-parseMain state = (ErrorNode "Expected 'principal()' at the beginning of main block", state)
+parseMain state = (ErrorNode "Expected 'principal { ... }' at the beginning of main block", state)
 
 parseStatements :: ParserState -> ([SyntaxTree], ParserState)
+parseStatements state@(ParserState (Llave_cierra '}':_)) = ([], state)
 parseStatements (ParserState tokens) =
     case parseStatement (ParserState tokens) of
         (ErrorNode _, state) -> ([], state)
@@ -117,7 +120,7 @@ parseStatement :: ParserState -> (SyntaxTree, ParserState)
 parseStatement (ParserState (Variable varType : Variable varName : Asignacion '=' : tokens)) =
     let (expr, newState) = parseExpression (ParserState tokens)
     in case newState of
-        ParserState (Punto_y_coma ';' : rest) -> (StatementNode (TypeNode varType), ParserState rest)
+        ParserState (Punto_y_coma ';' : rest) -> (StatementNode (AssignmentNode (VariableNode varName) (OperatorNode '=') expr) (TypeNode varType), ParserState rest)
         _ -> (ErrorNode "Expected ';' after assignment", newState)
 parseStatement (ParserState (Comentario comment : tokens)) = (CommentNode comment, ParserState tokens)
 parseStatement state = (ErrorNode "Invalid statement", state)
@@ -130,10 +133,10 @@ parseExpression state =
 parseExpression' :: SyntaxTree -> ParserState -> (SyntaxTree, ParserState)
 parseExpression' leftTerm (ParserState (Suma '+' : tokens)) =
     let (rightTerm, newState) = parseTerm (ParserState tokens)
-    in parseExpression' (ExpressionNode (TermNode leftTerm)) newState
+    in parseExpression' (ExpressionNode leftTerm (OperatorNode '+') rightTerm) newState
 parseExpression' leftTerm (ParserState (Resta '-' : tokens)) =
     let (rightTerm, newState) = parseTerm (ParserState tokens)
-    in parseExpression' (ExpressionNode (TermNode leftTerm)) newState
+    in parseExpression' (ExpressionNode leftTerm (OperatorNode '-') rightTerm) newState
 parseExpression' leftTerm state = (leftTerm, state)
 
 parseTerm :: ParserState -> (SyntaxTree, ParserState)
@@ -144,10 +147,10 @@ parseTerm state =
 parseTerm' :: SyntaxTree -> ParserState -> (SyntaxTree, ParserState)
 parseTerm' leftFactor (ParserState (Multiplicacion '*' : tokens)) =
     let (rightFactor, newState) = parseFactor (ParserState tokens)
-    in parseTerm' (TermNode leftFactor) newState
+    in parseTerm' (ExpressionNode leftFactor (OperatorNode '*') rightFactor) newState
 parseTerm' leftFactor (ParserState (Division '/' : tokens)) =
     let (rightFactor, newState) = parseFactor (ParserState tokens)
-    in parseTerm' (TermNode leftFactor) newState
+    in parseTerm' (ExpressionNode leftFactor (OperatorNode '/') rightFactor) newState
 parseTerm' leftFactor state = (leftFactor, state)
 
 parseFactor :: ParserState -> (SyntaxTree, ParserState)
