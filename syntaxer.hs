@@ -12,7 +12,12 @@ data Token
     | Asignacion Char
     | Parentesis_abre Char
     | Parentesis_cierra Char
+    | Llave_abre Char
+    | Llave_cierra Char
+    | Punto_y_coma Char
     | Variable String
+    | Programa
+    | Principal
     | Comentario String
     | Error String
     deriving (Eq, Show)
@@ -24,15 +29,18 @@ analizadorLexico ('\n':xs) = analizadorLexico xs
 analizadorLexico ('\t':xs) = analizadorLexico xs
 analizadorLexico ('/':'/':xs) = (Comentario ('/':'/':takeWhile (/= '\n') xs)) : analizadorLexico (dropWhile (/= '\n') xs)  
 analizadorLexico (x:xs)
-    | elem x ['0'..'9'] = let (numero, resto) = span (\y -> elem y ['0'..'9'] || y `elem` ".eE-") (x:xs)
-                              parseResult = if '.' `elem` numero || 'e' `elem` numero || 'E' `elem` numero
+    | elem x ['0'..'9'] = let (numero, resto) = span (\y -> elem y ['0'..'9'] || elem y ".eE-") (x:xs)
+                              parseResult = if elem '.' numero || elem 'e' numero || elem 'E' numero
                                                 then readFloating numero
                                                 else readInteger numero
                           in case parseResult of
                                 Right token -> token : analizadorLexico resto
                                 Left errMsg -> Error errMsg : analizadorLexico resto
     | elem x ['a'..'z'] || elem x ['A'..'Z'] = let (identificador, resto) = span (\y -> elem y ['a'..'z'] || elem y ['A'..'Z'] || elem y ['0'..'9'] || y == '_') (x:xs)
-                                                in (Variable identificador) : analizadorLexico resto  
+                                                in case identificador of
+                                                    "Programa" -> Programa : analizadorLexico resto
+                                                    "principal" -> Principal : analizadorLexico resto
+                                                    _ -> Variable identificador : analizadorLexico resto
     | otherwise = case x of
                     '+' -> Suma x : analizadorLexico xs
                     '-' -> Resta x : analizadorLexico xs
@@ -42,6 +50,9 @@ analizadorLexico (x:xs)
                     '=' -> Asignacion x : analizadorLexico xs
                     '(' -> Parentesis_abre x : analizadorLexico xs
                     ')' -> Parentesis_cierra x : analizadorLexico xs
+                    '{' -> Llave_abre x : analizadorLexico xs
+                    '}' -> Llave_cierra x : analizadorLexico xs
+                    ';' -> Punto_y_coma x : analizadorLexico xs
                     '@' -> Error "Simbolo no permitido: @" : analizadorLexico xs
                     '#' -> Error "Simbolo no permitido: #" : analizadorLexico xs
                     '$' -> Error "Simbolo no permitido: $" : analizadorLexico xs
@@ -79,39 +90,37 @@ data ParserState = ParserState [Token] deriving (Show)
 
 -- Funciones del parser
 parseProgram :: ParserState -> (SyntaxTree, ParserState)
-parseProgram (ParserState (Variable "Programa" : Parentesis_abre '{' : tokens)) =
+parseProgram (ParserState (Programa : Llave_abre '{' : tokens)) =
     let (mainNode, newState) = parseMain (ParserState tokens)
     in case newState of
-        ParserState (Parentesis_cierra '}' : rest) -> (ProgramNode mainNode, ParserState rest)
+        ParserState (Llave_cierra '}' : rest) -> (ProgramNode mainNode, ParserState rest)
         _ -> (ErrorNode "Expected closing '}' for Programa", newState)
 parseProgram state = (ErrorNode "Expected 'Programa' at the beginning", state)
 
 parseMain :: ParserState -> (SyntaxTree, ParserState)
-parseMain (ParserState (Variable "principal" : Parentesis_abre '(' : Parentesis_cierra ')' : Parentesis_abre '{' : tokens)) =
+parseMain (ParserState (Principal : Parentesis_abre '(' : Parentesis_cierra ')' : Llave_abre '{' : tokens)) =
     let (statements, newState) = parseStatements (ParserState tokens)
     in case newState of
-        ParserState (Parentesis_cierra '}' : rest) -> (MainNode statements, ParserState rest)
+        ParserState (Llave_cierra '}' : rest) -> (MainNode statements, ParserState rest)
         _ -> (ErrorNode "Expected closing '}' for principal", newState)
 parseMain state = (ErrorNode "Expected 'principal()' at the beginning of main block", state)
 
 parseStatements :: ParserState -> ([SyntaxTree], ParserState)
-parseStatements state =
-    let (statement, newState) = parseStatement state
-    in case statement of
-        ErrorNode _ -> ([], state)  -- Stop parsing if an error is encountered
-        _ -> let (moreStatements, finalState) = parseStatements newState
-             in (statement : moreStatements, finalState)
+parseStatements (ParserState tokens) =
+    case parseStatement (ParserState tokens) of
+        (ErrorNode _, state) -> ([], state)
+        (statement, ParserState rest) -> 
+            let (statements, newState) = parseStatements (ParserState rest)
+            in (statement : statements, newState)
 
 parseStatement :: ParserState -> (SyntaxTree, ParserState)
-parseStatement state =
-    case state of
-        ParserState (Variable varType : Variable varName : Asignacion '=' : tokens) ->
-            let (expr, newState) = parseExpression (ParserState tokens)
-            in case newState of
-                ParserState (Parentesis_abre ';' : rest) -> (StatementNode (TypeNode varType), ParserState rest)
-                _ -> (ErrorNode "Expected ';' after assignment", newState)
-        ParserState (Comentario comment : tokens) -> (CommentNode comment, ParserState tokens)
-        _ -> (ErrorNode "Invalid statement", state)
+parseStatement (ParserState (Variable varType : Variable varName : Asignacion '=' : tokens)) =
+    let (expr, newState) = parseExpression (ParserState tokens)
+    in case newState of
+        ParserState (Punto_y_coma ';' : rest) -> (StatementNode (TypeNode varType), ParserState rest)
+        _ -> (ErrorNode "Expected ';' after assignment", newState)
+parseStatement (ParserState (Comentario comment : tokens)) = (CommentNode comment, ParserState tokens)
+parseStatement state = (ErrorNode "Invalid statement", state)
 
 parseExpression :: ParserState -> (SyntaxTree, ParserState)
 parseExpression state =
