@@ -109,20 +109,22 @@ parseMain state = (ErrorNode "Expected 'principal { ... }' at the beginning of m
 
 parseStatements :: ParserState -> ([SyntaxTree], ParserState)
 parseStatements state@(ParserState (Llave_cierra '}':_)) = ([], state)
-parseStatements (ParserState tokens) =
-    case parseStatement (ParserState tokens) of
-        (ErrorNode _, state) -> ([], state)
-        (statement, ParserState rest) -> 
-            let (statements, newState) = parseStatements (ParserState rest)
-            in (statement : statements, newState)
+parseStatements state@(ParserState []) = ([], state)
+parseStatements state =
+    let (statement, newState) = parseStatement state
+    in case statement of
+        ErrorNode _ -> ([statement], newState)  -- Detenerse y reportar el error
+        _ -> let (statements, finalState) = parseStatements newState
+             in (statement : statements, finalState)
 
 parseStatement :: ParserState -> (SyntaxTree, ParserState)
 parseStatement (ParserState (Variable varType : Variable varName : Asignacion '=' : tokens)) =
     let (expr, newState) = parseExpression (ParserState tokens)
     in case newState of
         ParserState (Punto_y_coma ';' : rest) -> (StatementNode (AssignmentNode (VariableNode varName) (OperatorNode '=') expr) (TypeNode varType), ParserState rest)
-        _ -> (ErrorNode "Expected ';' after assignment", newState)
+        _ -> (ErrorNode $ "Expected ';' after assignment to variable " ++ varName, newState)
 parseStatement (ParserState (Comentario comment : tokens)) = (CommentNode comment, ParserState tokens)
+parseStatement (ParserState []) = (ErrorNode "Unexpected end of input", ParserState [])
 parseStatement state = (ErrorNode "Invalid statement", state)
 
 parseExpression :: ParserState -> (SyntaxTree, ParserState)
